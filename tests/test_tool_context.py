@@ -418,3 +418,11 @@ async def test_invoke_function_tool_ignores_annotated_string_metadata_when_match
     assert captured_context is not None
     assert not isinstance(captured_context, ToolContext)
     assert captured_context.tool_input == {"city": "Tokyo"}
+
+
+def test_tool_function_with_tool_context_specialization() -> None:
+    from agents.tool import ToolFunction, ToolFunctionWithToolContext, ToolParams
+
+    assert ToolFunction is not None
+    assert ToolFunctionWithToolContext is not None
+    assert ToolFunctionWithToolContext[ToolParams] is not None
