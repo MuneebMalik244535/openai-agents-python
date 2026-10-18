@@ -624,7 +624,7 @@ class ShellAction:
                 log_tool_action_error("Shell executor failed", exc)
 
             raw_entries: list[dict[str, Any]] | None = None
-            if shell_output_payload:
+            if shell_output_payload is not None:
                 raw_entries = shell_output_payload
             elif output_text:
                 raw_entries = [
@@ -636,7 +636,9 @@ class ShellAction:
                     }
                 ]
 
-            structured_output = normalize_shell_output_entries(raw_entries) if raw_entries else []
+            structured_output = (
+                normalize_shell_output_entries(raw_entries) if raw_entries is not None else []
+            )
 
             raw_item: dict[str, Any] = {
                 "type": "shell_call_output",
@@ -647,7 +649,7 @@ class ShellAction:
             ItemHelpers.copy_tool_call_caller(call.tool_call, raw_item)
             if max_output_length is not None:
                 raw_item["max_output_length"] = max_output_length
-            if raw_entries:
+            if raw_entries is not None:
                 raw_item["shell_output"] = raw_entries
             if provider_meta:
                 raw_item["provider_data"] = provider_meta
