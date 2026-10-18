@@ -773,7 +773,8 @@ class Converter:
                     and "refusal" not in current_assistant_msg
                     # None is the untouched state; a list means thinking blocks were
                     # already reconstructed into content parts and text can be appended.
-                    and (pending_content is None or isinstance(pending_content, list))
+                    # A string means a previous same-turn message was already merged.
+                    and (pending_content is None or isinstance(pending_content, (list, str)))
                 ):
                     merged_asst = current_assistant_msg
                     if text_segments:
@@ -783,6 +784,8 @@ class Converter:
                                 *pending_content,
                                 ChatCompletionContentPartTextParam(text=combined, type="text"),
                             ]
+                        elif isinstance(pending_content, str):
+                            merged_asst["content"] = f"{pending_content}\n{combined}"
                         else:
                             merged_asst["content"] = combined
                     if refusal is not None:

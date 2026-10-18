@@ -428,6 +428,58 @@ def test_items_to_messages_merges_function_call_before_output_message():
     assert messages[1]["tool_call_id"] == "abc"
 
 
+def test_items_to_messages_merges_multiple_messages_in_tool_call_turn():
+    """When a tool-call turn contains multiple assistant messages before the tool output,
+    all messages must be merged into the pending assistant message rather than splitting
+    into multiple assistant messages that the Chat Completions API rejects."""
+    func_item: ResponseFunctionToolCallParam = {
+        "id": "99",
+        "call_id": "abc",
+        "name": "math",
+        "arguments": "{}",
+        "type": "function_call",
+    }
+    msg_1 = ResponseOutputMessage(
+        id="1",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[ResponseOutputText(text="First part.", type="output_text", annotations=[])],
+    )
+    msg_2 = ResponseOutputMessage(
+        id="2",
+        type="message",
+        role="assistant",
+        status="completed",
+        content=[ResponseOutputText(text="Second part.", type="output_text", annotations=[])],
+    )
+    tool_output = {
+        "type": "function_call_output",
+        "call_id": "abc",
+        "output": "4",
+    }
+
+    items = [
+        cast(TResponseInputItem, func_item),
+        cast(TResponseInputItem, msg_1.model_dump()),
+        cast(TResponseInputItem, msg_2.model_dump()),
+        cast(TResponseInputItem, tool_output),
+    ]
+
+    messages = Converter.items_to_messages(items)
+
+    assert len(messages) == 2
+    assistant = messages[0]
+    assert assistant["role"] == "assistant"
+    assert assistant["content"] == "First part.\nSecond part."
+    tool_calls = assistant.get("tool_calls")
+    assert isinstance(tool_calls, list)
+    assert len(tool_calls) == 1
+    assert tool_calls[0]["function"]["name"] == "math"
+    assert messages[1]["role"] == "tool"
+    assert messages[1]["tool_call_id"] == "abc"
+
+
 def test_items_to_messages_streamed_and_nonstreamed_turn_order_converge():
     """[function_call, message] and [message, function_call] describe the same
     turn and must produce identical Chat Completions messages."""
