@@ -598,3 +598,74 @@ async def test_terminal_consumer_cancellation_waits_for_registered_cleanup(
         await asyncio.gather(consumer, cleanup_waiter, result.run_loop_task, return_exceptions=True)
         await result._await_model_provider_cleanup()
         await result._run_sandbox_cleanup()
+
+
+@pytest.mark.asyncio
+async def test_stream_events_consumer_exception_cancels_background_run():
+    """When a stream_events() consumer raises an exception outside the queue wait,
+    the background run must be cancelled rather than continuing to execute tools."""
+    tool_calls = 0
+
+    @tool
+    def count_tool() -> str:
+        nonlocal tool_calls
+        tool_calls += 1
+        return "ok"
+
+    model = ScriptedModel()
+    model.extend(
+        [
+            [get_function_tool_call("count_tool", "{}")],
+            [get_function_tool_call("count_tool", "{}")],
+            [get_function_tool_call("count_tool", "{}")],
+            [get_text_message("done")],
+        ]
+    )
+    agent = Agent(name="Worker", model=model, tools=[count_tool])
+    result = Runner.run_streamed(agent, input="go")
+
+    with pytest.raises(ConnectionError, match="client disconnected"):
+        async for _ in result.stream_events():
+            if tool_calls >= 1:
+                raise ConnectionError("client disconnected")
+
+    await asyncio.sleep(0.1)
+    assert tool_calls == 1
+    assert result.is_complete
+    assert result.run_loop_task is not None
+    assert result.run_loop_task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_stream_events_consumer_break_cancels_background_run():
+    """When a stream_events() consumer breaks early outside the queue wait,
+    the background run must be cancelled rather than continuing to execute tools."""
+    tool_calls = 0
+
+    @tool
+    def count_tool() -> str:
+        nonlocal tool_calls
+        tool_calls += 1
+        return "ok"
+
+    model = ScriptedModel()
+    model.extend(
+        [
+            [get_function_tool_call("count_tool", "{}")],
+            [get_function_tool_call("count_tool", "{}")],
+            [get_function_tool_call("count_tool", "{}")],
+            [get_text_message("done")],
+        ]
+    )
+    agent = Agent(name="Worker", model=model, tools=[count_tool])
+    result = Runner.run_streamed(agent, input="go")
+
+    async for _ in result.stream_events():
+        if tool_calls >= 1:
+            break
+
+    await asyncio.sleep(0.1)
+    assert tool_calls == 1
+    assert result.is_complete
+    assert result.run_loop_task is not None
+    assert result.run_loop_task.cancelled()

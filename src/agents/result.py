@@ -1039,6 +1039,8 @@ class RunResultStreaming(RunResultBase):
                 return
             if task.cancelled() or task.exception() is not None:
                 unregister_consumer()
+                if not self.is_complete and self._active_stream_consumers == 0:
+                    self.cancel()
 
         def register_current_consumer() -> None:
             nonlocal consumer_registered, registered_consumer_task
@@ -1107,6 +1109,8 @@ class RunResultStreaming(RunResultBase):
             if registered_consumer_task is not None:
                 registered_consumer_task.remove_done_callback(consumer_task_done)
             unregister_consumer()
+            if not self.is_complete and self._active_stream_consumers == 0:
+                self.cancel()
             try:
                 try:
                     if cancelled:
