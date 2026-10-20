@@ -250,13 +250,16 @@ asyncio.run(main())
 
 The constructor accepts additional options:
 
-- `client_session_timeout_seconds` controls MCP ClientSession read timeouts. Positive finite values representable by `datetime.timedelta` and at least one microsecond set a finite timeout; `None` and `0` disable it. Other values are rejected when the server is constructed.
+- `client_session_timeout_seconds` controls MCP ClientSession read timeouts. Defaults to `5` seconds. Positive finite values representable by `datetime.timedelta` and at least one microsecond set a finite timeout; `None` and `0` disable it. Other values are rejected when the server is constructed.
 - `use_structured_content` toggles whether `tool_result.structured_content` is preferred over textual output.
 - `max_retry_attempts` and `retry_backoff_seconds_base` add automatic retries for `list_tools()` and `call_tool()`.
+- `retry_backoff_seconds_max` caps the maximum delay in seconds between retries; `None` (the default) leaves exponential backoff uncapped.
+- `max_list_pages` sets the maximum number of pages allowed per automatic `list_tools()` or `list_prompts()` call. `None` (the default) applies no page limit; exceeding a configured positive integer limit raises `UserError`.
 - `tool_filter` lets you expose only a subset of tools (see [Tool filtering](#tool-filtering)).
 - `require_approval` enables human-in-the-loop approval policies on local MCP tools.
 - `failure_error_function` customizes model-visible MCP tool failure messages; set it to `None` to raise errors instead.
 - `tool_meta_resolver` injects per-call MCP `_meta` payloads before `call_tool()`.
+- `custom_data_extractor` provides an optional callable that extracts SDK-only custom data for emitted MCP tool output items.
 
 ### Approval policies for local MCP servers
 
@@ -366,6 +369,7 @@ async with MCPServerStdio(
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-filesystem", str(samples_dir)],
     },
+    client_session_timeout_seconds=30,
 ) as server:
     agent = Agent(
         name="Assistant",
@@ -375,6 +379,10 @@ async with MCPServerStdio(
     result = await Runner.run(agent, "List the files available to you.")
     print(result.final_output)
 ```
+
+!!! tip "Cold-start timeouts and package managers"
+
+    `MCPServerStdio` defaults to `client_session_timeout_seconds=5`. When you use command-line package runners such as `npx -y` or `uvx` that download packages on first run, the initial package installation often exceeds five seconds. Increase `client_session_timeout_seconds` (for example, to `30`) or set it to `None` to prevent `Request 'initialize' timed out` errors during cold starts. On Windows, ensure `"command"` points to an executable or batch runner such as `"npx.cmd"`.
 
 ## 5. MCP server manager
 
